@@ -1,0 +1,6 @@
+requests
+beautifulsoup4
+wikipedia-api
+pandas
+tqdm
+nltk

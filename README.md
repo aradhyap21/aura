@@ -90,3 +90,87 @@ This opens Swagger UI — a built-in interactive interface to test all endpoints
 - ✅ PDF (must be text-based, not scanned)
 - ✅ DOCX (Word documents)
 - ✅ PPTX (PowerPoint presentations)
+
+# AURA Dataset Collection
+
+## Folder Structure
+
+```
+AURA_dataset/
+├── requirements.txt
+├── scrapers/
+│   ├── openstax_scraper.py    ← scrapes OpenStax textbooks
+│   ├── wikipedia_scraper.py   ← scrapes Wikipedia articles
+│   └── formatter.py           ← cleans and formats into training data
+└── data/                      ← created automatically
+    ├── openstax_raw.json
+    ├── wikipedia_raw.json
+    ├── aura_dataset.jsonl     ← FINAL: ready for fine-tuning
+    ├── aura_dataset.json      ← human-readable version
+    └── stats.json             ← collection statistics
+```
+
+## Setup
+
+```bash
+pip install requests beautifulsoup4 wikipedia-api pandas tqdm nltk
+```
+
+## Run in Order
+
+### Step 1 — Scrape OpenStax
+```bash
+python scrapers/openstax_scraper.py
+```
+- Scrapes 10 textbooks
+- Extracts all chapter sections
+- Saves to data/openstax_raw.json
+- Takes about 20-30 minutes
+
+### Step 2 — Scrape Wikipedia
+```bash
+python scrapers/wikipedia_scraper.py
+```
+- Scrapes 60+ educational topics
+- Extracts all article sections
+- Saves to data/wikipedia_raw.json
+- Takes about 5-10 minutes
+
+### Step 3 — Format into Training Data
+```bash
+python scrapers/formatter.py
+```
+- Cleans all raw data
+- Removes duplicates
+- Creates 3 training examples per topic:
+  1. Simplified explanation task
+  2. Exam bullet points task
+  3. Real-world analogy task
+- Saves final JSONL ready for fine-tuning
+
+## Expected Output
+
+| Source    | Raw Examples | After Cleaning |
+|-----------|-------------|----------------|
+| OpenStax  | ~1500       | ~800           |
+| Wikipedia | ~800        | ~600           |
+| **Total** | **~2300**   | **~4200 training examples** |
+
+(3 tasks × ~1400 unique topics = ~4200 training examples)
+
+## Dataset Format (Alpaca Format)
+
+Each line in aura_dataset.jsonl looks like:
+```json
+{
+  "instruction": "You are an expert tutor...",
+  "input": "Topic: Machine Learning\n\nContent: ...",
+  "output": "...",
+  "task": "explanation",
+  "topic": "Machine Learning"
+}
+```
+
+## Next Step After Collection
+Hand the aura_dataset.jsonl to the fine-tuning script
+to train Mistral 7B or Phi-3 on Google Colab.
