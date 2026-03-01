@@ -1,11 +1,9 @@
 """
-AURA Dataset Scraper — OpenStax
-Scrapes free textbook content from OpenStax.
-Extracts: chapter titles, section headings, body content.
-Saves as structured JSON ready for fine-tuning.
+AURA Dataset Scraper — OpenStax (Fixed)
+Uses archive.cnx.org JSON API — much more reliable than HTML scraping.
 
 Run:
-    python openstax_scraper.py
+    python scrapers/openstax_scraper.py
 
 Output:
     data/openstax_raw.json
@@ -15,176 +13,136 @@ import requests
 import json
 import time
 import os
+import re
 from bs4 import BeautifulSoup
 
-# ── Output folder ─────────────────────────────────────────────────
 os.makedirs("data", exist_ok=True)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; AURA-DataCollector/1.0)"
 }
 
-# ── OpenStax Books to scrape ──────────────────────────────────────
-# Each entry: (book_name, book_slug_url)
-OPENSTAX_BOOKS = [
-    ("Introduction to Sociology",       "https://openstax.org/books/introduction-sociology-3e/pages/1-introduction"),
-    ("Psychology 2e",                   "https://openstax.org/books/psychology-2e/pages/1-introduction"),
-    ("Biology 2e",                      "https://openstax.org/books/biology-2e/pages/1-introduction"),
-    ("Principles of Economics 3e",      "https://openstax.org/books/principles-economics-3e/pages/1-introduction"),
-    ("College Physics",                 "https://openstax.org/books/college-physics-2e/pages/1-introduction"),
-    ("Introduction to Statistics",      "https://openstax.org/books/introductory-statistics/pages/1-introduction"),
-    ("Calculus Volume 1",               "https://openstax.org/books/calculus-volume-1/pages/1-introduction"),
-    ("Anatomy and Physiology",          "https://openstax.org/books/anatomy-and-physiology-2e/pages/1-introduction"),
-    ("US History",                      "https://openstax.org/books/us-history/pages/1-introduction"),
-    ("Chemistry 2e",                    "https://openstax.org/books/chemistry-2e/pages/1-introduction"),
+# ── OpenStax Book UUIDs from archive.cnx.org ─────────────────────
+# Format: (book_name, uuid)
+BOOKS = [
+    ("Psychology 2e",               "4664c267-cd62-4a99-8b28-1cb9b3aee347"),
+    ("Biology 2e",                  "8d50a0af-948b-4204-a71d-4826cba765b8"),
+    ("Principles of Economics 3e",  "bc498e1f-efe9-43a0-8dea-d3569ad09a82"),
+    ("College Physics 2e",          "e54516ad-23d2-421b-9b8f-9e5026a92d37"),
+    ("US History",                  "a7ba2fb8-8925-4987-b182-5f4429d48daa"),
+    ("Chemistry 2e",                "85abf193-2bd2-4908-8563-90b8a7ac8df6"),
+    ("Introduction to Sociology 3e","02040312-72c8-441e-a685-20e9333f3e1d"),
+    ("Anatomy and Physiology 2e",   "40a35dc4-5703-4994-8a64-7f9da1c8d42f"),
+    ("Calculus Volume 1",           "13ac107a-f15f-49d2-97e8-60ab2e3b519c"),
+    ("University Physics Volume 1", "d50f6e32-0fda-46ef-a362-9bd36ca7c97d"),
 ]
 
+BASE_URL = "https://archive.cnx.org/contents"
 
-def get_page(url: str) -> BeautifulSoup | None:
-    """Fetch a page and return BeautifulSoup object."""
+
+def clean_html(html_text: str) -> str:
+    """Strip HTML tags and clean up text."""
+    if not html_text:
+        return ""
+    soup = BeautifulSoup(html_text, "html.parser")
+    # Remove figures, footnotes, math
+    for tag in soup.find_all(["figure", "math", "sup", "aside"]):
+        tag.decompose()
+    text = soup.get_text(separator=" ")
+    text = re.sub(r'\[\d+\]', '', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+
+def get_book_tree(uuid: str) -> dict | None:
+    """Fetch the full book table of contents."""
+    url = f"{BASE_URL}/{uuid}.json"
     try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
+        r = requests.get(url, headers=HEADERS, timeout=20)
         if r.status_code == 200:
-            return BeautifulSoup(r.text, "html.parser")
-        else:
-            print(f"  ⚠ Status {r.status_code} for {url}")
-            return None
+            return r.json()
+        print(f"  ⚠ Status {r.status_code}")
+        return None
     except Exception as e:
-        print(f"  ✗ Error fetching {url}: {e}")
+        print(f"  ✗ Error: {e}")
         return None
 
 
-def get_all_chapter_links(book_url: str) -> list[str]:
+def get_page_content(page_id: str) -> str:
+    """Fetch a single page's HTML content."""
+    url = f"{BASE_URL}/{page_id}.json"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        if r.status_code == 200:
+            data = r.json()
+            return data.get("content", "")
+        return ""
+    except Exception:
+        return ""
+
+
+def walk_tree(tree: list, book_name: str, results: list, depth: int = 0):
     """
-    Get all chapter/section page links from a book's table of contents.
-    OpenStax loads TOC in the sidebar — we extract all page links.
+    Recursively walk the book tree.
+    Each leaf node = a page = a topic.
     """
-    soup = get_page(book_url)
-    if not soup:
-        return []
+    for node in tree:
+        title    = node.get("title", "").strip()
+        contents = node.get("contents", [])
+        node_id  = node.get("id", "")
 
-    links = []
-    base = "https://openstax.org"
-
-    # OpenStax TOC links are in <nav> or sidebar with class containing 'toc'
-    toc = soup.find("nav", {"aria-label": True}) or soup.find("ol", class_=lambda c: c and "toc" in c.lower())
-
-    if toc:
-        for a in toc.find_all("a", href=True):
-            href = a["href"]
-            if "/pages/" in href:
-                full = base + href if href.startswith("/") else href
-                if full not in links:
-                    links.append(full)
-    else:
-        # Fallback: get all /pages/ links on the page
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if "/pages/" in href and "introduction" not in href.lower():
-                full = base + href if href.startswith("/") else href
-                if full not in links:
-                    links.append(full)
-
-    return links[:50]  # cap at 50 pages per book
-
-
-def extract_page_content(url: str, book_name: str) -> list[dict]:
-    """
-    Extract topic-content pairs from a single OpenStax page.
-    Each section heading + its paragraphs = one training example.
-    """
-    soup = get_page(url)
-    if not soup:
-        return []
-
-    results = []
-
-    # Main content area
-    main = (
-        soup.find("div", class_=lambda c: c and "content" in c.lower()) or
-        soup.find("main") or
-        soup.find("article")
-    )
-    if not main:
-        return []
-
-    # Get page title (chapter/section name)
-    page_title = ""
-    h1 = main.find("h1") or soup.find("h1")
-    if h1:
-        page_title = h1.get_text(strip=True)
-
-    # Walk through headings and collect content under each
-    current_heading = page_title
-    current_paragraphs = []
-
-    for elem in main.find_all(["h1", "h2", "h3", "h4", "p", "li"]):
-        tag = elem.name
-
-        if tag in ["h1", "h2", "h3", "h4"]:
-            # Save previous section
-            if current_heading and current_paragraphs:
-                content = " ".join(current_paragraphs).strip()
-                if len(content.split()) >= 30:  # only if enough content
+        if contents:
+            # This is a chapter — recurse into it
+            walk_tree(contents, book_name, results, depth + 1)
+        elif node_id and title:
+            # This is a leaf page — fetch content
+            html = get_page_content(node_id)
+            if html:
+                text = clean_html(html)
+                word_count = len(text.split())
+                if word_count >= 80:
                     results.append({
                         "source"    : "openstax",
                         "book"      : book_name,
-                        "url"       : url,
-                        "topic"     : current_heading,
-                        "content"   : content,
+                        "topic"     : title,
+                        "content"   : text,
+                        "url"       : f"https://openstax.org/books/{book_name.lower().replace(' ', '-')}/pages/{node_id}",
                     })
-            current_heading = elem.get_text(strip=True)
-            current_paragraphs = []
-
-        elif tag in ["p", "li"]:
-            text = elem.get_text(strip=True)
-            if len(text) > 30:  # skip very short lines
-                current_paragraphs.append(text)
-
-    # Save last section
-    if current_heading and current_paragraphs:
-        content = " ".join(current_paragraphs).strip()
-        if len(content.split()) >= 30:
-            results.append({
-                "source" : "openstax",
-                "book"   : book_name,
-                "url"    : url,
-                "topic"  : current_heading,
-                "content": content,
-            })
-
-    return results
+            time.sleep(0.8)  # polite delay
 
 
 def scrape_openstax() -> list[dict]:
-    """Main scraper — loops over all books and pages."""
     all_data = []
 
-    for book_name, start_url in OPENSTAX_BOOKS:
-        print(f"\n📚 Scraping: {book_name}")
+    for book_name, uuid in BOOKS:
+        print(f"\n📚 {book_name}")
 
-        chapter_links = get_all_chapter_links(start_url)
-        print(f"   Found {len(chapter_links)} pages")
+        tree_data = get_book_tree(uuid)
+        if not tree_data:
+            print(f"  ✗ Could not fetch book tree")
+            continue
 
-        for i, url in enumerate(chapter_links):
-            print(f"   [{i+1}/{len(chapter_links)}] {url.split('/')[-1]}", end="\r")
-            examples = extract_page_content(url, book_name)
-            all_data.extend(examples)
-            time.sleep(1.2)  # polite delay — don't hammer the server
+        # Book tree is in tree_data["tree"]["contents"]
+        book_tree = tree_data.get("tree", {}).get("contents", [])
+        if not book_tree:
+            print(f"  ✗ Empty book tree")
+            continue
 
-        print(f"   ✅ {book_name} done — {len(all_data)} total examples so far")
+        book_results = []
+        walk_tree(book_tree, book_name, book_results)
+        all_data.extend(book_results)
+        print(f"  ✅ {len(book_results)} sections scraped")
 
     return all_data
 
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("AURA Dataset Scraper — OpenStax")
+    print("AURA Dataset Scraper — OpenStax (via archive.cnx.org API)")
     print("=" * 60)
 
     data = scrape_openstax()
 
-    # Save raw
     output_path = "data/openstax_raw.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
