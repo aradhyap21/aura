@@ -6,7 +6,7 @@ Docs:  http://localhost:8000/docs
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from services.analyze_service import analyze
+from services.analyze_service import analyze_document
 from models.schemas import ExtractionResult
 
 app = FastAPI(

@@ -1,82 +1,55 @@
 """
-AURA v2 — Analysis Service
-Wires together: file extraction → topic parsing → result assembly
+AURA v3 — Analyze Service
+Coordinator between API, extractor, and semantic topic extractor.
 """
 
-from fastapi import UploadFile, HTTPException
-from utils.extractor   import detect_type, extract_full_text
-from utils.topic_parser import parse_topics
-from models.schemas    import ExtractionResult, Priority
+from utils.extractor import extract_full_text, detect_file_type
+from utils.semantic_topic_extractor import parse_topics
+from models.schemas import ExtractionResult
 
 
-MAX_MB = 30
+async def analyze_document(file) -> ExtractionResult:
 
+    # Step 1 — detect file type
+    file_type = detect_file_type(file.content_type, file.filename)
 
-async def analyze(file: UploadFile) -> ExtractionResult:
-    """
-    Complete pipeline:
-    1. Detect and validate file type
-    2. Read full file bytes
-    3. Extract complete text (no truncation)
-    4. Parse topics and subtopics from structure
-    5. Score and classify all topics
-    6. Return structured result
-    """
-
-    # ── 1. File type ─────────────────────────────────────────────
-    file_type = detect_type(file.content_type or "", file.filename or "")
-
-    # ── 2. Read file ─────────────────────────────────────────────
+    # Step 2 — read and size check
     file_bytes = await file.read()
     size_mb    = len(file_bytes) / (1024 * 1024)
+    if size_mb > 30:
+        raise ValueError(f"File too large ({size_mb:.1f}MB). Max 30MB.")
 
-    if size_mb > MAX_MB:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File too large ({size_mb:.1f} MB). Max is {MAX_MB} MB."
-        )
-
-    # ── 3. Extract FULL text ─────────────────────────────────────
+    # Step 3 — extract full text
+    print(f"  Extracting text from {file_type.upper()}...")
     raw_text = extract_full_text(file_bytes, file_type)
 
-    total_words = len(raw_text.split())
-    warnings    = []
+    # Step 4 — warnings
+    word_count = len(raw_text.split())
+    warnings   = []
+    if word_count < 100:
+        warnings.append("Very little text extracted. Check if file is a scanned image.")
+    if word_count > 150_000:
+        warnings.append("Very large document. Processing may take longer.")
 
-    if total_words < 100:
-        warnings.append(
-            "Very few words extracted. File may be a scanned image or mostly visual content."
-        )
-    if total_words > 150_000:
-        warnings.append("Very large document. Processing may take a few seconds.")
-
-    # ── 4. Parse topics ──────────────────────────────────────────
+    # Step 5 — semantic topic extraction
+    print(f"  Running semantic topic extraction on {word_count} words...")
     topics = parse_topics(raw_text)
 
-    if not topics:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "Could not detect any topics or structure in this document. "
-                "Try a document with clear headings or sections."
-            )
-        )
+    # Step 6 — assemble result
+    high   = sum(1 for t in topics if t.priority.value == "High")
+    medium = sum(1 for t in topics if t.priority.value == "Medium")
+    low    = sum(1 for t in topics if t.priority.value == "Low")
+    subs   = sum(len(t.subtopics) for t in topics)
 
-    # ── 5. Count by priority ─────────────────────────────────────
-    high_count   = sum(1 for t in topics if t.priority == Priority.HIGH)
-    medium_count = sum(1 for t in topics if t.priority == Priority.MEDIUM)
-    low_count    = sum(1 for t in topics if t.priority == Priority.LOW)
-    total_subs   = sum(len(t.subtopics) for t in topics)
-
-    # ── 6. Return result ─────────────────────────────────────────
     return ExtractionResult(
-        file_name       = file.filename or "unknown",
+        filename        = file.filename,
         file_type       = file_type,
-        total_words     = total_words,
+        word_count      = word_count,
         total_topics    = len(topics),
-        total_subtopics = total_subs,
-        high_count      = high_count,
-        medium_count    = medium_count,
-        low_count       = low_count,
-        warnings        = warnings,
+        high_priority   = high,
+        medium_priority = medium,
+        low_priority    = low,
+        total_subtopics = subs,
         topics          = topics,
+        warnings        = warnings,
     )

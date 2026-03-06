@@ -1,43 +1,106 @@
 """
-AURA v2 — File Extractor
-Extracts the COMPLETE raw text from PDF / DOCX / PPTX.
-No truncation. No previews. Full document.
+AURA v3 — Document Extractor
+Handles:
+  - PDF (normal text-based)
+  - PDF (scanned / handwritten) → OCR via Tesseract
+  - DOCX
+  - PPTX
+
+Returns clean full text for the semantic topic extractor.
 """
 
 import io
 import re
 import pdfplumber
-import docx
+from docx import Document
 from pptx import Presentation
-from fastapi import HTTPException
+
+
+# ─────────────────────────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────────────────────────
+
+def clean_text(text: str) -> str:
+    """Remove noise common in extracted documents."""
+    text = re.sub(r'^\s*\d{1,3}\s*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'https?://\S+', '', text)
+    text = re.sub(r'\n{4,}', '\n\n', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'[^\x20-\x7E\n]', ' ', text)
+    return text.strip()
+
+
+def is_scanned_pdf(file_bytes: bytes) -> bool:
+    """
+    Detect if a PDF is scanned (image-only, no text layer).
+    If less than 50 words extracted from first 3 pages = scanned.
+    """
+    try:
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            sample = ""
+            for page in pdf.pages[:3]:
+                t = page.extract_text()
+                if t:
+                    sample += t
+            return len(sample.split()) < 50
+    except Exception:
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────
 # PDF
 # ─────────────────────────────────────────────────────────────────
 
-def extract_pdf(file_bytes: bytes) -> str:
-    """
-    Extract every page of a PDF.
-    Handles multi-column, tables, and standard formatted PDFs.
-    """
+def extract_pdf_text(file_bytes: bytes) -> str:
     pages = []
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        for page_num, page in enumerate(pdf.pages, start=1):
-            text = page.extract_text(x_tolerance=3, y_tolerance=3)
-            if text and text.strip():
-                pages.append(text.strip())
+        for page in pdf.pages:
+            t = page.extract_text()
+            if t:
+                pages.append(t)
+    return clean_text('\n\n'.join(pages))
 
-    if not pages:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "No text found in PDF. "
-                "This is likely a scanned/image PDF. "
-                "Please use a text-based PDF."
-            )
+
+def extract_pdf_ocr(file_bytes: bytes) -> str:
+    """
+    OCR for scanned/handwritten PDFs.
+    Requires: Tesseract + pytesseract + pdf2image + Pillow
+
+    Install Tesseract:
+      Windows: https://github.com/UB-Mannheim/tesseract/wiki
+      Linux:   sudo apt install tesseract-ocr
+    """
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+
+        print("  Scanned PDF detected — running OCR...")
+        images = convert_from_bytes(file_bytes, dpi=300)
+        pages  = []
+        for i, img in enumerate(images):
+            print(f"  OCR page {i+1}/{len(images)}...", end="\r")
+            text = pytesseract.image_to_string(img, lang='eng')
+            if text.strip():
+                pages.append(text)
+        print()
+        return clean_text('\n\n'.join(pages))
+
+    except ImportError as e:
+        raise ValueError(
+            f"Scanned PDF detected but OCR not installed.\n"
+            f"pip install pytesseract pdf2image Pillow\n"
+            f"Tesseract: https://github.com/UB-Mannheim/tesseract/wiki\n"
+            f"Error: {e}"
         )
-    return '\n\n'.join(pages)
+
+
+def extract_pdf(file_bytes: bytes) -> str:
+    if is_scanned_pdf(file_bytes):
+        return extract_pdf_ocr(file_bytes)
+    text = extract_pdf_text(file_bytes)
+    if len(text.split()) < 30:
+        raise ValueError("Very little text extracted. May be a scanned PDF.")
+    return text
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -45,37 +108,35 @@ def extract_pdf(file_bytes: bytes) -> str:
 # ─────────────────────────────────────────────────────────────────
 
 def extract_docx(file_bytes: bytes) -> str:
-    """
-    Extract paragraphs + tables from a Word document.
-    Preserves heading structure which is critical for topic detection.
-    """
-    doc   = docx.Document(io.BytesIO(file_bytes))
-    parts = []
+    doc   = Document(io.BytesIO(file_bytes))
+    lines = []
 
     for para in doc.paragraphs:
-        text = para.text.strip()
+        text  = para.text.strip()
+        style = para.style.name.lower() if para.style else ""
         if not text:
             continue
-
-        # Mark headings explicitly so topic detector can find them
-        style = para.style.name.lower() if para.style else ""
-        if "heading" in style:
-            level = ''.join(filter(str.isdigit, style)) or '1'
-            parts.append(f"{'#' * int(level)} {text}")
+        if "heading 1" in style:
+            lines.append(f"# {text}")
+        elif "heading 2" in style:
+            lines.append(f"## {text}")
+        elif "heading 3" in style or "heading 4" in style:
+            lines.append(f"### {text}")
         else:
-            parts.append(text)
+            lines.append(text)
 
-    # Tables
     for table in doc.tables:
         for row in table.rows:
-            cells = [c.text.strip() for c in row.cells if c.text.strip()]
-            if cells:
-                parts.append(' | '.join(cells))
+            row_text = ' | '.join(
+                cell.text.strip() for cell in row.cells if cell.text.strip()
+            )
+            if row_text:
+                lines.append(row_text)
 
-    if not parts:
-        raise HTTPException(status_code=422, detail="No text found in DOCX file.")
-
-    return '\n'.join(parts)
+    text = clean_text('\n'.join(lines))
+    if len(text.split()) < 30:
+        raise ValueError("DOCX appears empty.")
+    return text
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -83,103 +144,57 @@ def extract_docx(file_bytes: bytes) -> str:
 # ─────────────────────────────────────────────────────────────────
 
 def extract_pptx(file_bytes: bytes) -> str:
-    """
-    Extract text from every slide.
-    Slide titles become topic markers.
-    Body text becomes content.
-    Speaker notes are included.
-    """
     prs   = Presentation(io.BytesIO(file_bytes))
-    parts = []
+    lines = []
 
-    for slide_num, slide in enumerate(prs.slides, start=1):
-        slide_title   = ""
-        slide_content = []
+    for i, slide in enumerate(prs.slides, 1):
+        lines.append(f"\n--- Slide {i} ---")
+
+        if slide.shapes.title and slide.shapes.title.text.strip():
+            lines.append(f"# {slide.shapes.title.text.strip()}")
 
         for shape in slide.shapes:
             if not shape.has_text_frame:
                 continue
-
-            shape_text = shape.text_frame.text.strip()
-            if not shape_text:
+            if shape == slide.shapes.title:
                 continue
+            for para in shape.text_frame.paragraphs:
+                text = para.text.strip()
+                if text and len(text) > 3:
+                    lines.append(text)
 
-            # Title placeholder → treat as heading
-            if shape.shape_type == 13 or (hasattr(shape, "placeholder_format") and
-               shape.placeholder_format is not None and
-               shape.placeholder_format.idx == 0):
-                slide_title = shape_text
-            else:
-                slide_content.append(shape_text)
-
-        # Assemble slide
-        if slide_title:
-            parts.append(f"# {slide_title}")
-        elif slide_content:
-            parts.append(f"# Slide {slide_num}")
-
-        if slide_content:
-            parts.append('\n'.join(slide_content))
-
-        # Speaker notes
         if slide.has_notes_slide:
             notes = slide.notes_slide.notes_text_frame.text.strip()
-            if notes:
-                parts.append(f"[Notes: {notes}]")
+            if notes and len(notes.split()) > 5:
+                lines.append(f"[Notes: {notes}]")
 
-    if not parts:
-        raise HTTPException(status_code=422, detail="No text found in PPTX file.")
-
-    return '\n\n'.join(parts)
+    text = clean_text('\n'.join(lines))
+    if len(text.split()) < 20:
+        raise ValueError("PPTX appears empty.")
+    return text
 
 
 # ─────────────────────────────────────────────────────────────────
 # ROUTER
 # ─────────────────────────────────────────────────────────────────
 
-ALLOWED_EXTENSIONS = {
-    ".pdf" : "PDF",
-    ".docx": "DOCX",
-    ".doc" : "DOCX",
-    ".pptx": "PPTX",
-}
-
-ALLOWED_MIME = {
-    "application/pdf"                                                            : "PDF",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"   : "DOCX",
-    "application/msword"                                                         : "DOCX",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation" : "PPTX",
-    "application/vnd.ms-powerpoint"                                              : "PPTX",
-}
-
-MAX_MB = 30
-
-
-def detect_type(content_type: str, filename: str) -> str:
-    ftype = ALLOWED_MIME.get(content_type)
-    if not ftype:
-        for ext, t in ALLOWED_EXTENSIONS.items():
-            if filename.lower().endswith(ext):
-                ftype = t
-                break
-    if not ftype:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file. Upload a PDF, DOCX, or PPTX."
-        )
-    return ftype
+def detect_file_type(content_type: str, filename: str) -> str:
+    ct = (content_type or "").lower()
+    fn = (filename or "").lower()
+    if "pdf" in ct or fn.endswith(".pdf"):
+        return "pdf"
+    if "wordprocessingml" in ct or fn.endswith(".docx"):
+        return "docx"
+    if "presentationml" in ct or fn.endswith((".pptx", ".ppt")):
+        return "pptx"
+    raise ValueError(f"Unsupported file type: {content_type or filename}")
 
 
 def extract_full_text(file_bytes: bytes, file_type: str) -> str:
-    """Route to the correct extractor and return complete raw text."""
-    try:
-        if file_type == "PDF":
-            return extract_pdf(file_bytes)
-        elif file_type == "DOCX":
-            return extract_docx(file_bytes)
-        elif file_type == "PPTX":
-            return extract_pptx(file_bytes)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Extraction failed: {str(e)}")
+    if file_type == "pdf":
+        return extract_pdf(file_bytes)
+    elif file_type == "docx":
+        return extract_docx(file_bytes)
+    elif file_type == "pptx":
+        return extract_pptx(file_bytes)
+    raise ValueError(f"Unknown file type: {file_type}")
