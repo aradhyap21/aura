@@ -6,7 +6,7 @@ Docs:  http://localhost:8000/docs
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from services.analyze_service import analyze_document
+from services.analyze_service import analyze_document as run_analysis
 from models.schemas import ExtractionResult
 
 app = FastAPI(
@@ -54,4 +54,4 @@ async def analyze_document(file: UploadFile = File(...)):
 
     Results are sorted: **High priority topics first**.
     """
-    return await analyze(file)
+    return await run_analysis(file)

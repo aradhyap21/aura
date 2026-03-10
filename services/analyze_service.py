@@ -42,14 +42,14 @@ async def analyze_document(file) -> ExtractionResult:
     subs   = sum(len(t.subtopics) for t in topics)
 
     return ExtractionResult(
-        filename        = file.filename,
-        file_type       = file_type,
-        word_count      = word_count,
-        total_topics    = len(topics),
-        high_priority   = high,
-        medium_priority = medium,
-        low_priority    = low,
-        total_subtopics = subs,
-        topics          = topics,
-        warnings        = warnings,
-    )
+    file_name       = file.filename,
+    file_type       = file_type,
+    total_words     = word_count,
+    total_topics    = len(topics),
+    high_count      = high,
+    medium_count    = medium,
+    low_count       = low,
+    total_subtopics = subs,
+    topics          = topics,
+    warnings        = warnings,
+)
