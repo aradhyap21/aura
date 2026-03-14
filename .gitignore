@@ -1,0 +1,17 @@
+venv/
+venv312/
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+.DS_Store
+
+# Large data files
+AURA_dataset/data/
+AURA_dataset/models/
+
+# HuggingFace cache
+.cache/
