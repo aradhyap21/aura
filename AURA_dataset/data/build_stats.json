@@ -1,0 +1,14 @@
+{
+  "annotated": 0,
+  "wikipedia": 2697,
+  "eli5": 8000,
+  "dolly": 5000,
+  "flan": 5000,
+  "total": 15961,
+  "annotated_weighted": 0,
+  "by_task": {
+    "qa": 8115,
+    "explanation": 7072,
+    "summary": 774
+  }
+}
