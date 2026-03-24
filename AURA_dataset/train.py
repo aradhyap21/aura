@@ -33,18 +33,18 @@ from tqdm import tqdm
 
 # ── Config ────────────────────────────────────────────────────────
 CONFIG = {
-    "model_name"    : "t5-small",          # base model
-    "dataset_path"  : "data/aura_training_final.jsonl",
+    "model_name"    : "t5-base",
+    "dataset_path"  : "data/aura_training_clean.jsonl",
     "output_dir"    : "models/aura_explainer",
     "max_input_len" : 512,
     "max_output_len": 256,
-    "batch_size"    : 8,                   # safe for 6GB VRAM
-    "epochs"        : 3,
-    "lr"            : 3e-4,
-    "warmup_steps"  : 100,
-    "save_every"    : 500,                 # save checkpoint every N steps
+    "batch_size"    : 4,
+    "epochs"        : 5,
+    "lr"            : 5e-4,
+    "warmup_steps"  : 200,
+    "save_every"    : 500,
     "log_every"     : 50,
-    "max_examples"  : 20000,               # cap for manageable training time
+    "max_examples"  : 20000,
     "seed"          : 42,
 }
 
