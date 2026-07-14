@@ -1,0 +1,28 @@
+{
+  "files.watcherExclude": {
+    "**/.hypothesis/**": true,
+    "**/.pytest_cache/**": true,
+    "**/venv/**": true,
+    "**/__pycache__/**": true,
+    "**/bart-finetuned/**": true,
+    "**/flan-t5-finetuned/**": true,
+    "**/.kiro/**": true
+  },
+  "files.exclude": {
+    "**/.hypothesis": true,
+    "**/.pytest_cache": true,
+    "**/__pycache__": true,
+    "**/venv": true,
+    "**/bart-finetuned": true,
+    "**/flan-t5-finetuned": true,
+    "**/.kiro": true
+  },
+  "git.ignoredRepositories": [],
+  "search.exclude": {
+    "**/.hypothesis/**": true,
+    "**/venv/**": true,
+    "**/__pycache__/**": true,
+    "**/bart-finetuned/**": true,
+    "**/flan-t5-finetuned/**": true
+  }
+}
