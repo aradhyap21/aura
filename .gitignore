@@ -1,0 +1,55 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environment ──────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+
+# ── Reports, Handbooks & Functional Documents ───────────────────────────────
+# Word / Excel docs
+*.docx
+*.xlsx
+# Markdown reports / handbooks / functional docs
+AURA_Comprehensive_Handbook.md
+AURA_Project_Handbook.md
+Functional_Document_AURA.md
+PROJECT_REPORT.md
+PRESENTATION_SCRIPT.md
+temp_handbook.md
+# Text dump files generated during doc analysis
+doc_analysis.txt
+docx_content.txt
+# Report-builder scripts (one-off generation scripts, not core app code)
+build_final_report.py
+build_proper_report.py
+generate_report.py
+analyze_doc.py
+
+# ── Fine-tuned model weights (large binary blobs) ───────────────────────────
+bart-finetuned/
+flan-t5-finetuned/
+
+# ── Test / hypothesis caches ────────────────────────────────────────────────
+.hypothesis/
+.pytest_cache/
+*.cover
+.coverage
+htmlcov/
+
+# ── IDE / tool configs ──────────────────────────────────────────────────────
+.kiro/
+.vscode/
+.idea/
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

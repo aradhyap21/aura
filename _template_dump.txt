@@ -1,0 +1,99 @@
+Functional Document
+
+
+Introduction
+Product Goal 
+Demography (Users, Location)
+Business Processes 
+Features 
+Feature #1 
+Description 
+User Story
+Authorization Matrix 
+Assumptions 
+
+
+
+
+
+Example 1  -  Online Learning Platform - project
+
+1. Introduction
+The Online Learning Platform project aims to revolutionize remote education by enhancing user experience and introducing new features. Sprint 1 is focused on implementing critical improvements to the user authentication system and optimizing the course search functionality.
+2. Product Goal
+The primary goal of this sprint is to enhance the security of user accounts and streamline the process of discovering relevant courses, contributing to the overarching objective of providing a seamless online learning experience.
+3. Demography (Users, Location)
+Users
+Target Users: Students, educators, and administrators
+User Characteristics: Diverse age groups, varying technical proficiency
+Location
+Target Location: Worldwide
+4. Business Processes
+The key business processes include:
+User Registration and Authentication:
+Process for users to register securely and authenticate their accounts.
+Course Discovery:
+Process for users to search, filter, and enroll in courses.
+Content Management:
+Process for educators to create and manage course content.
+5. Features
+This sprint will focus on implementing the following key features:
+Enhanced User Authentication:
+Enable two-factor authentication for added security.
+Implement account recovery options.
+Course Search Optimization:
+Introduce category filters for courses.
+Improve sorting options based on relevance and popularity.
+
+6. Authorization Matrix
+Define the roles and their corresponding access levels:
+
+7. Assumptions
+The development environment and infrastructure will remain stable throughout the sprint.
+Stakeholders, including administrators and educators, will be available for feedback and clarification.
+Team members possess the necessary skills and resources to complete the assigned tasks.
+
+
+
+
+
+
+Sprint Functional Document for Health and Fitness app
+1. Introduction
+The Health and Fitness App project focuses on enhancing the user experience by introducing personalized workout plans and nutrition tracking. Sprint 2 (example) aims to implement advanced features such as real-time workout tracking and integration with wearable devices.
+2. Product Goal
+The primary goal of this sprint is to elevate the health and fitness app's functionality by incorporating real-time workout tracking capabilities and seamless integration with popular wearable devices. This aligns with the overarching project objective of providing users with a comprehensive and personalized fitness experience.
+3. Demography (Users, Location)
+Users
+Target Users: Fitness enthusiasts, casual users, and nutrition-conscious individuals
+User Characteristics: Diverse fitness goals, various fitness levels
+Location
+Target Location: Global usage with a focus on health-conscious communities
+4. Business Processes
+Key business processes include:
+User Onboarding:
+Process for users to create profiles and set fitness goals.
+Workout Planning:
+Process for users to receive personalized workout plans.
+Nutrition Tracking:
+Process for users to log and track their daily nutrition intake.
+5. Features
+This sprint will focus on implementing the following key features:
+Real-time Workout Tracking:
+Integrate sensors for real-time tracking of exercises.
+Provide instant feedback on form and performance.
+Wearable Device Integration:
+Enable seamless synchronization with popular wearable devices.
+Utilize device data for more accurate fitness insights.
+6. Authorization Matrix
+Define the roles and their corresponding access levels:
+
+
+7. Assumptions
+The development environment and infrastructure will remain stable during the sprint.
+Users are open to sharing data with wearable devices for an enhanced fitness experience.
+Team members possess the necessary skills and resources to complete the assigned tasks.
+
+
+
+

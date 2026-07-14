@@ -1,0 +1,118 @@
+[0] (Normal) TASA – Architecture Document
+[1] (Heading 1) 1. Application Architecture
+[2] (Heading 2) 1.1 Selected Architecture: Hybrid (Microservices + Event-Driven)
+[3] (Normal) TASA follows a hybrid architecture combining Microservices and Event-Driven Architecture to ensure scalability, modularity, and efficient processing.
+
+• Microservices separate core functionalities (upload, extraction, scoring, feedback)
+• Event-driven approach enables asynchronous execution of pipeline stages
+
+Benefits:
+• Scalable system design
+• Loose coupling between components
+• Efficient AI pipeline execution
+[4] (Heading 2) 1.2 System Overview
+[5] (Normal) TASA is an AI-based grading system that processes student submissions through the following stages:
+
+• Upload submission
+• Text extraction
+• Evidence extraction
+• Scoring
+• Review
+• Feedback generation
+• Result storage and display
+[7] (Heading 2) 1.3 Architecture Layers
+[8] (Heading 3) 1.3.1 Frontend Layer
+[9] (Normal) Technology: React / Next.js
+Responsibilities:
+• Upload PDF submissions
+• Display dashboard
+• Show results
+[10] (Heading 3) 1.3.2 Backend Layer
+[11] (Normal) Technology: Python (Flask/FastAPI)
+Responsibilities:
+• Handle API requests
+• Manage workflow
+• Trigger AI modules
+[12] (Heading 3) 1.3.3 Preprocessing Layer
+[13] (Normal) Tools: PyMuPDF / pdfplumber
+Responsibilities:
+• Extract text from PDF
+• Clean and tokenize data
+[14] (Heading 3) 1.3.4 Caching & Similarity Layer
+[15] (Normal) • SHA-256 hashing (exact match)
+• Vector similarity (embeddings)
+• Supabase PostgreSQL (pgvector)
+
+Function:
+• Cache hit → instant result
+• Cache miss → AI pipeline
+[16] (Heading 3) 1.3.5 AI Grading Pipeline
+[17] (Normal) • Evidence Extraction Module
+• Scoring Engine
+• Review Module
+• Regrade Loop
+• Feedback Module
+[18] (Heading 3) 1.3.6 Database & Storage Layer
+[19] (Normal) Supabase (PostgreSQL + Blob Storage)
+Stores submissions, results, rubrics
+[20] (Heading 3) 1.3.7 Output Layer
+[21] (Normal) Displays score, evidence, reasoning, and feedback
+[23] (Heading 1) 2. Database Architecture
+[24] (Heading 2) 2.1 ER Diagram
+[25] (Normal) Defines relationships between Student, Submission, Results, and Rubrics.
+[27] (Heading 2) 2.2 Schema Design
+[28] (Heading 2) Submissions Table
+[29] (Heading 2) submission_id (PK)
+[30] (Heading 2) student_name
+[31] (Heading 2) student_email
+[32] (Heading 2) rubric_id (FK)
+[33] (Heading 2) file_path
+[34] (Heading 2) status
+[35] (Heading 2) progress_log (JSONB)
+[36] (Heading 2) created_at
+[37] (Heading 2) Grading Results Table
+[38] (Heading 2) result_id (PK)
+[39] (Heading 2) submission_id (FK)
+[40] (Heading 2) total_score
+[41] (Heading 2) max_score
+[42] (Heading 2) reasoning_trace (JSON)
+[43] (Heading 2) review_status
+[44] (Heading 2) regrade_count
+[45] (Heading 2) content_hash
+[46] (Heading 2) embedding (VECTOR 1024)
+[47] (Heading 2) graded_at
+[48] (Heading 2) Rubrics Table
+[49] (Heading 2) rubric_id (PK)
+[50] (Heading 2) title
+[51] (Heading 2) course_code
+[52] (Heading 2) criteria (JSON)
+[53] (Heading 2) total_points
+[54] (Heading 2) created_at
+[55] (Heading 2) Evidence Maps Table
+[56] (Heading 2) evidence_id (PK)
+[57] (Heading 2) grading_id (FK)
+[58] (Heading 2) criterion_id
+[59] (Heading 2) evidence_quote
+[60] (Heading 2) page_number
+[61] (Heading 2) confidence
+[62] (Heading 2) is_verified
+[63] (Heading 2) Feedback Table
+[64] (Heading 2) feedback_id (PK)
+[65] (Heading 2) grading_id (FK)
+[66] (Heading 2) criterion_id
+[67] (Heading 2) feedback_type
+[68] (Heading 2) content
+[69] (Heading 2) 2.3 Data Exchange Contract
+[70] (Heading 3) 2.3.1 Frequency of Data Exchanges
+[71] (Normal) Real-time processing after submission
+Event-triggered communication
+[72] (Heading 3) 2.3.2 Data Sets
+[73] (Normal) Input: PDF submissions, Rubric
+Intermediate: Extracted text, Evidence JSON
+Output: Score, Reasoning, Feedback
+[74] (Heading 3) 2.3.3 Mode of Exchange
+[75] (Normal) REST APIs, Internal module calls, JSON format, Database storage
+
+--- Tables: 0 ---
+
+--- Images/InlineShapes: 4 ---
