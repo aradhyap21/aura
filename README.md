@@ -1,4 +1,4 @@
-# AURA 2 — Adaptive Understanding and Retaining Agent
+# AURA  — Adaptive Understanding and Retaining Agent
 
 AURA is an AI-powered academic study assistant that transforms raw PDF documents
 into structured, adaptive study material. Upload any textbook chapter, research
